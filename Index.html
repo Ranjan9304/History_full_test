@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hello future topper - History Quiz</title>
+    
+    <!-- Firebase Libraries -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        /* Anti-Copy CSS */
+        .noselect {
+            -webkit-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #eef2f3;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+        
+        /* Watermark */
+        #watermark {
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.04;
+            font-size: 30px;
+            color: #000;
+            overflow: hidden;
+            word-wrap: break-word;
+            line-height: 1.5;
+            transform: rotate(-30deg);
+            display: none;
+        }
+
+        .header {
+            background: linear-gradient(to right, #1a2a6c, #b21f1f, #fdbb2d);
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+            text-transform: uppercase;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header h1 { margin: 0; font-size: 24px; letter-spacing: 1px; }
+        .header p { margin: 5px 0 0 0; font-size: 14px; font-weight: bold; }
+        
+        .container {
+            max-width: 750px;
+            margin: 30px auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 10;
+        }
+        .hidden { display: none !important; }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        
+        button {
+            padding: 12px;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover { background-color: #219150; }
+        button:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        
+        .btn-full { width: 100%; font-size: 18px; }
+        
+        #timer-bar {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 12px;
+            border-radius: 5px;
+            text-align: right;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 20px;
+            border: 1px solid #ffeeba;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .question-block {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px dashed #eee;
+        }
+        .question-title { font-weight: bold; font-size: 18px; margin-bottom: 15px; color: #2c3e50; }
+        .option-label {
+            display: block;
+            background: #f8f9fa;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            font-size: 16px;
+        }
+        .option-label:hover { background: #e9ecef; }
+        
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .nav-buttons button { width: 30%; }
+        #submitBtn { background-color: #e74c3c; width: 45%; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 12px; text-align: center; font-size: 15px; }
+        th { background-color: #1a2a6c; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .highlight-row { background-color: #d4edda !important; font-weight: bold; }
+        
+        #review-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+            max-height: 400px;
+            overflow-y: auto;
+            text-align: left;
+        }
+        .review-item { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 10px; }
+        .correct-ans { color: #27ae60; font-weight: bold; }
+        .wrong-ans { color: #e74c3c; font-weight: bold; }
+        
+        .timer-msg { color: #e74c3c; font-weight: bold; text-align: center; margin-bottom: 10px; font-size: 16px;}
+    </style>
+</head>
+<body oncontextmenu="return false;" class="noselect">
+
+<div id="watermark"></div>
+
+<div class="header">
+    <h1>Hello future topper</h1>
+    <p id="quiz-subtitle">History Quiz (Full Syllabus) | Time: 10 Mins</p>
+</div>
+
+<!-- LOGIN SCREEN -->
+<div class="container" id="login-screen">
+    <h2 style="text-align: center; color: #2c3e50;">Welcome to Online Test</h2>
+    <p style="text-align: center; color: #555;">कृपया अपना नाम दर्ज करें।<br><br><span style="color:red; font-size: 14px;">(Warning: स्क्रीन बदलने पर टेस्ट स्वतः सबमिट हो जाएगा!)<br><b>नोट:</b> टेस्ट सबमिट करने पर केवल मार्क्स दिखेंगे। सही उत्तरों का विश्लेषण (Review) टेस्ट देने के <b>5 घंटे बाद</b> इसी लिंक पर खुलेगा।</span></p>
+    <input type="text" id="studentName" placeholder="Enter Your Full Name..." required autocomplete="off">
+    <button id="startBtn" class="btn-full" onclick="startQuiz()">Start Quiz</button>
+    <p id="loading-text" style="text-align:center; color:#e74c3c; display:none;">Checking database...</p>
+</div>
+
+<!-- QUIZ SCREEN -->
+<div class="container hidden" id="quiz-screen">
+    <div id="timer-bar">⏱ Time Left: <span id="time">10:00</span></div>
+    
+    <div id="question-progress" style="text-align:center; margin-bottom:15px; color:#555; font-weight:bold;"></div>
+    
+    <div id="questions-container"></div>
+    
+    <div class="nav-buttons">
+        <button id="prevBtn" onclick="prevQuestion()" style="background-color: #34495e;">⬅ Previous</button>
+        <button id="nextBtn" onclick="nextQuestion()">Next ➡</button>
+        <button id="submitBtn" class="hidden" onclick="submitQuiz()">Submit Test ✔</button>
+    </div>
+</div>
+
+<!-- LEADERBOARD & REVIEW SCREEN -->
+<div class="container hidden" id="result-screen">
+    <h2 id="result-message" style="text-align: center; color: #27ae60;"></h2>
+    <p id="delay-message" class="timer-msg hidden"></p>
+    
+    <!-- Answers Review (Hidden for 5 hours) -->
+    <div id="review-container" class="hidden"></div>
+    
+    <h3 style="text-align: center; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-top: 25px;">🏆 All Students Leaderboard 🏆</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Student Name</th>
+                <th>Marks</th>
+            </tr>
+        </thead>
+        <tbody id="leaderboard-body">
+            <tr><td colspan="3">Loading rankings...</td></tr>
+        </tbody>
+    </table>
+    <p style="text-align:center; margin-top:25px; color:#e74c3c; font-weight:bold; font-size: 16px;">Written by Saurya Raj Ranjan</p>
+    <button onclick="location.reload()" class="btn-full" style="margin-top: 15px; background-color: #34495e;">Go to Home</button>
+</div>
+
+<script>
+    // ==========================================
+    // FIREBASE CONFIGURATION
+    // ==========================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyCNrj_kjgL968A9bnCxchVkstqraLlJXB8",
+      authDomain: "chemistry-quiz-549f8.firebaseapp.com",
+      databaseURL: "https://chemistry-quiz-549f8-default-rtdb.firebaseio.com",
+      projectId: "chemistry-quiz-549f8",
+      storageBucket: "chemistry-quiz-549f8.firebasestorage.app",
+      messagingSenderId: "80126416681",
+      appId: "1:80126416681:web:03982f45ca35a97c758938"
+    };
+
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
+    
+    // ==========================================
+    // SETTINGS (Time & 5 Hours Delay Logic)
+    // ==========================================
+    const QUIZ_TIME_IN_MINUTES = 10;
+    const REVIEW_DELAY_MS = 5 * 60 * 60 * 1000; 
+    
+    // 50 HISTORY QUESTIONS (Full Syllabus PYQs)
+    const questions = [
+        { q: "1. हड़प्पा सभ्यता का सबसे बड़ा नगर कौन था?", options: ["मोहनजोदड़ो", "कालीबंगा", "लोथल", "रंगपुर"], ans: "मोहनजोदड़ो" },
+        { q: "2. लोथल कहाँ स्थित है?", options: ["गुजरात", "पश्चिम बंगाल", "राजस्थान", "पंजाब"], ans: "गुजरात" },
+        { q: "3. भारतीय पुरातत्व का पिता किसे कहा जाता है?", options: ["लॉर्ड कर्जन", "अलेक्जेंडर कनिंघम", "दयाराम साहनी", "जॉन मार्शल"], ans: "अलेक्जेंडर कनिंघम" },
+        { q: "4. महाभारत का युद्ध कितने दिनों तक चला?", options: ["14 दिन", "15 दिन", "16 दिन", "18 दिन"], ans: "18 दिन" },
+        { q: "5. श्वेताम्बर और दिगम्बर का संबंध किस धर्म से है?", options: ["हिन्दू", "बौद्ध", "शैव", "जैन"], ans: "जैन" },
+        { q: "6. हीनयान और महायान संप्रदाय किस धर्म से संबंधित हैं?", options: ["जैन धर्म", "बौद्ध धर्म", "हिन्दू धर्म", "सिक्ख धर्म"], ans: "बौद्ध धर्म" },
+        { q: "7. त्रिपिटक साहित्य का संबंध है:", options: ["जैन धर्म से", "बौद्ध धर्म से", "शैव धर्म से", "वैष्णव धर्म से"], ans: "बौद्ध धर्म से" },
+        { q: "8. अर्थशास्त्र के लेखक कौन थे?", options: ["वाल्मीकि", "वेदव्यास", "कौटिल्य", "मेगस्थनीज"], ans: "कौटिल्य" },
+        { q: "9. इंडिका की रचना किसने की?", options: ["कौटिल्य", "मेगस्थनीज", "अलबरूनी", "इत्सिंग"], ans: "मेगस्थनीज" },
+        { q: "10. अशोक किस वंश का शासक था?", options: ["नंद वंश", "मौर्य वंश", "गुप्त वंश", "हर्यक वंश"], ans: "मौर्य वंश" },
+        { q: "11. पुराणों की संख्या कितनी है?", options: ["16", "18", "19", "20"], ans: "18" },
+        { q: "12. प्रयाग प्रशस्ति की रचना किसने की?", options: ["कालिदास", "बाणभट्ट", "हरिषेण", "पतंजलि"], ans: "हरिषेण" },
+        { q: "13. भारत का नेपोलियन किसे कहा जाता है?", options: ["अशोक", "समुद्रगुप्त", "अकबर", "चन्द्रगुप्त मौर्य"], ans: "समुद्रगुप्त" },
+        { q: "14. 16 महाजनपदों में सबसे शक्तिशाली महाजनपद कौन था?", options: ["मगध", "अवन्ति", "कोसल", "गांधार"], ans: "मगध" },
+        { q: "15. कलिंग युद्ध कब हुआ था?", options: ["261 ई.पू.", "280 ई.पू.", "285 ई.पू.", "290 ई.पू."], ans: "261 ई.पू." },
+        { q: "16. विजयनगर साम्राज्य की स्थापना किसने की?", options: ["हरिहर और बुक्का", "देवराय प्रथम", "कृष्णदेव राय", "सदाशिव राय"], ans: "हरिहर और बुक्का" },
+        { q: "17. गोपुरम का संबंध है:", options: ["गाय से", "नगर से", "व्यापार से", "मंदिर से"], ans: "मंदिर से" },
+        { q: "18. हम्पी नगर किस साम्राज्य से संबंधित है?", options: ["बहमनी", "विजयनगर", "मौर्य", "गुप्त"], ans: "विजयनगर" },
+        { q: "19. प्रसिद्ध विरूपाक्ष मंदिर कहाँ स्थित है?", options: ["हम्पी", "बेलूर", "चिदम्बरम", "श्रीरंगम"], ans: "हम्पी" },
+        { q: "20. तलवंडी में किस प्रसिद्ध संत का जन्म हुआ था?", options: ["कबीर", "रैदास", "मीरा", "गुरु नानक"], ans: "गुरु नानक" },
+        { q: "21. ख्वाजा मुईनुद्दीन चिश्ती की दरगाह कहाँ स्थित है?", options: ["दिल्ली", "आगरा", "जयपुर", "अजमेर"], ans: "अजमेर" },
+        { q: "22. बीजक में किसका उपदेश संगृहीत है?", options: ["कबीर", "गुरु नानक", "चैतन्य", "रामानंद"], ans: "कबीर" },
+        { q: "23. इब्न बतूता किस देश का यात्री था?", options: ["मोरक्को", "मिस्र", "तुर्की", "ईरान"], ans: "मोरक्को" },
+        { q: "24. अलबरूनी किसके साथ भारत आया था?", options: ["मोहम्मद गौरी", "महमूद गजनवी", "बाबर", "इल्तुतमिश"], ans: "महमूद गजनवी" },
+        { q: "25. 'किताब-उल-हिंद' के लेखक कौन हैं?", options: ["अलबरूनी", "अब्दुर रज्जाक", "इब्न बतूता", "मार्को पोलो"], ans: "अलबरूनी" },
+        { q: "26. आईन-ए-अकबरी कितने भागों में विभक्त है?", options: ["2", "3", "4", "5"], ans: "5" },
+        { q: "27. अकबरनामा की रचना किसने की?", options: ["अमीर खुसरो", "अलबरूनी", "इब्न बतूता", "अबुल फजल"], ans: "अबुल फजल" },
+        { q: "28. कुतुबमीनार का निर्माण किसने शुरू किया?", options: ["कुतुबुद्दीन ऐबक", "इल्तुतमिश", "रजिया", "जलालुद्दीन खिलजी"], ans: "कुतुबुद्दीन ऐबक" },
+        { q: "29. ताजमहल का निर्माण किसने करवाया?", options: ["अकबर", "जहाँगीर", "शाहजहां", "औरंगजेब"], ans: "शाहजहां" },
+        { q: "30. जजिया किससे लिया जाता था?", options: ["व्यापारियों से", "बुद्धिजीवियों से", "सैनिकों से", "जिम्मियों से"], ans: "जिम्मियों से" },
+        { q: "31. पानीपत का प्रथम युद्ध किस वर्ष हुआ था?", options: ["1509 ई.", "1526 ई.", "1556 ई.", "1761 ई."], ans: "1526 ई." },
+        { q: "32. दीन-ए-इलाही किससे संबंधित है?", options: ["बाबर", "हुमायूँ", "अकबर", "औरंगजेब"], ans: "अकबर" },
+        { q: "33. भारत में मुगल वंश का संस्थापक कौन था?", options: ["बाबर", "हुमायूँ", "अकबर", "जहाँगीर"], ans: "बाबर" },
+        { q: "34. 1857 के विद्रोह के समय भारत का गवर्नर जनरल कौन था?", options: ["लॉर्ड क्लाइव", "लॉर्ड बेंटिक", "लॉर्ड कैनिंग", "लॉर्ड डलहौजी"], ans: "लॉर्ड कैनिंग" },
+        { q: "35. 1857 के गदर को किसने एक क्रांति कहा है?", options: ["कार्ल मार्क्स", "आर.सी. मजूमदार", "वी.डी. सावरकर", "टी.आर. होम्स"], ans: "कार्ल मार्क्स" },
+        { q: "36. बिहार में 1857 के विद्रोह का नेतृत्व किसने किया?", options: ["पीर अली", "वीर कुंवर सिंह", "वाजिद अली शाह", "नाना साहब"], ans: "वीर कुंवर सिंह" },
+        { q: "37. पटना में 1857 की क्रांति का नेतृत्व किसने किया?", options: ["पीर अली", "अमर सिंह", "वाजिद अली", "कुंवर सिंह"], ans: "पीर अली" },
+        { q: "38. 'द ग्रेट रिवोल्ट' नामक पुस्तक किसने लिखी है?", options: ["पट्टाभि सीतारमैया", "अशोक मेहता", "जेम्स आउट्रम", "रॉबर्ट्स"], ans: "अशोक मेहता" },
+        { q: "39. गेटवे ऑफ इंडिया का निर्माण कब हुआ?", options: ["1910", "1911", "1912", "1914"], ans: "1911" },
+        { q: "40. भारत में रेलवे की शुरुआत कब हुई?", options: ["1753", "1853", "1873", "1953"], ans: "1853" },
+        { q: "41. महात्मा गाँधी दक्षिण अफ्रीका से भारत कब लौटे?", options: ["1910", "1912", "1915", "1923"], ans: "1915" },
+        { q: "42. 'करो या मरो' का नारा किसने दिया?", options: ["सुभाष चंद्र बोस", "भगत सिंह", "महात्मा गाँधी", "बाल गंगाधर तिलक"], ans: "महात्मा गाँधी" },
+        { q: "43. सविनय अवज्ञा आंदोलन कब प्रारंभ हुआ?", options: ["1920", "1922", "1930", "1942"], ans: "1930" },
+        { q: "44. 'चंपारण सत्याग्रह' का संबंध किस राज्य से है?", options: ["महाराष्ट्र", "गुजरात", "बिहार", "पंजाब"], ans: "बिहार" },
+        { q: "45. जलियांवाला बाग हत्याकांड कब हुआ था?", options: ["13 अप्रैल 1919", "13 अप्रैल 1920", "13 अप्रैल 1921", "13 अप्रैल 1922"], ans: "13 अप्रैल 1919" },
+        { q: "46. भारत छोड़ो आंदोलन किस वर्ष हुआ?", options: ["1920", "1930", "1935", "1942"], ans: "1942" },
+        { q: "47. 'दिल्ली चलो' का नारा किसने दिया?", options: ["महात्मा गाँधी", "सुभाष चंद्र बोस", "जवाहरलाल नेहरू", "राजेंद्र प्रसाद"], ans: "सुभाष चंद्र बोस" },
+        { q: "48. स्वतंत्र भारत के प्रथम गवर्नर जनरल कौन थे?", options: ["सी. राजगोपालाचारी", "लॉर्ड माउंटबेटन", "राजेंद्र प्रसाद", "सरदार पटेल"], ans: "लॉर्ड माउंटबेटन" },
+        { q: "49. भारतीय संविधान के प्रारूप समिति के अध्यक्ष कौन थे?", options: ["राजेंद्र प्रसाद", "जवाहरलाल नेहरू", "बी. आर. अंबेडकर", "सरदार पटेल"], ans: "बी. आर. अंबेडकर" },
+        { q: "50. भारतीय संविधान कब लागू किया गया?", options: ["26 नवंबर 1949", "24 जनवरी 1950", "26 जनवरी 1950", "15 अगस्त 1947"], ans: "26 जनवरी 1950" }
+    ];
+
+    let currentStudent = "";
+    let timeTotal = QUIZ_TIME_IN_MINUTES * 60; 
+    let timerInterval;
+    let isQuizActive = false;
+    
+    // Pagination Variables
+    let currentQuestionIndex = 0;
+    let studentAnswers = new Array(questions.length).fill("Attempt nahi kiya");
+
+    document.getElementById('time').innerText = `${QUIZ_TIME_IN_MINUTES < 10 ? '0'+QUIZ_TIME_IN_MINUTES : QUIZ_TIME_IN_MINUTES}:00`;
+
+    // ==========================================
+    // ANTI-CHEAT: TAB SWITCH DETECTION
+    // ==========================================
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden && isQuizActive) {
+            alert("चेतावनी! आपने टेस्ट के दौरान स्क्रीन/टैब बदली है। आपका टेस्ट ऑटोमैटिकली सबमिट हो रहा है। (Cheating Detected)");
+            submitQuiz();
+        }
+    });
+
+    function startQuiz() {
+        let nameInput = document.getElementById('studentName').value.trim();
+        if(nameInput === "") {
+            alert("कृपया टेस्ट शुरू करने के लिए अपना नाम दर्ज करें!");
+            return;
+        }
+
+        let dbKey = nameInput.replace(/[.#$\[\]]/g, '').toLowerCase();
+
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('loading-text').style.display = "block";
+        
+        // Use New DB Node for History Advanced Test
+        db.ref('history_full_advanced_students/' + dbKey).once('value').then((snapshot) => {
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('loading-text').style.display = "none";
+
+            if(snapshot.exists()) {
+                let userData = snapshot.val();
+                let timePassed = Date.now() - userData.time;
+                currentStudent = nameInput;
+
+                if (timePassed >= REVIEW_DELAY_MS) {
+                    alert(`Hello ${nameInput}, आपके टेस्ट को 5 घंटे पूरे हो चुके हैं। अब आप अपने उत्तरों की जांच (Review) कर सकते हैं!`);
+                    showLeaderboard(false, userData, true); // Show Answers
+                } else {
+                    let remainingMs = REVIEW_DELAY_MS - timePassed;
+                    let hrs = Math.floor(remainingMs / (1000 * 60 * 60));
+                    let mins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+                    
+                    alert(`Hello ${nameInput}, आप यह टेस्ट पहले ही दे चुके हैं। आपके सही/गलत उत्तर ${hrs} घंटे और ${mins} मिनट बाद खुलेंगे। तब तक अपना रैंक देखें।`);
+                    showLeaderboard(false, userData, false); // Hide Answers
+                }
+            } else {
+                currentStudent = nameInput;
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('quiz-screen').classList.remove('hidden');
+                
+                // Show watermark
+                let wm = document.getElementById('watermark');
+                wm.innerText = (currentStudent + " ").repeat(200);
+                wm.style.display = "block";
+                
+                isQuizActive = true;
+                currentQuestionIndex = 0;
+                renderQuestion();
+                startTimer();
+            }
+        }).catch(error => {
+            alert("Database connection error: " + error.message);
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('loading-text').style.display = "none";
+        });
+    }
+
+    function renderQuestion() {
+        const container = document.getElementById('questions-container');
+        const progress = document.getElementById('question-progress');
+        
+        progress.innerText = `Question ${currentQuestionIndex + 1} of ${questions.length}`;
+        
+        let item = questions[currentQuestionIndex];
+        let qHTML = `<div class="question-block">
+            <div class="question-title">${item.q}</div>`;
+            
+        item.options.forEach((opt, idx) => {
+            let isChecked = (studentAnswers[currentQuestionIndex] === opt) ? "checked" : "";
+            qHTML += `<label class="option-label">
+                        <input type="radio" name="q_current" value="${opt}" onchange="saveAnswer('${opt}')" ${isChecked}> ${opt}
+                      </label>`;
+        });
+        qHTML += `</div>`;
+        container.innerHTML = qHTML;
+
+        document.getElementById('prevBtn').style.visibility = (currentQuestionIndex === 0) ? 'hidden' : 'visible';
+        
+        if (currentQuestionIndex === questions.length - 1) {
+            document.getElementById('nextBtn').classList.add('hidden');
+            document.getElementById('submitBtn').classList.remove('hidden');
+        } else {
+            document.getElementById('nextBtn').classList.remove('hidden');
+            document.getElementById('submitBtn').classList.add('hidden');
+        }
+    }
+
+    function saveAnswer(val) {
+        studentAnswers[currentQuestionIndex] = val;
+    }
+
+    function nextQuestion() {
+        if (currentQuestionIndex < questions.length - 1) {
+            currentQuestionIndex++;
+            renderQuestion();
+        }
+    }
+
+    function prevQuestion() {
+        if (currentQuestionIndex > 0) {
+            currentQuestionIndex--;
+            renderQuestion();
+        }
+    }
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            timeTotal--;
+            let min = Math.floor(timeTotal / 60);
+            let sec = timeTotal % 60;
+            document.getElementById('time').innerText = `${min < 10 ? '0'+min : min}:${sec < 10 ? '0'+sec : sec}`;
+            
+            if(timeTotal <= 0) {
+                clearInterval(timerInterval);
+                alert("Time Out! आपका टेस्ट ऑटोमैटिकली सबमिट हो रहा है।");
+                submitQuiz();
+            }
+        }, 1000);
+    }
+
+    function submitQuiz() {
+        isQuizActive = false;
+        clearInterval(timerInterval);
+        document.getElementById('watermark').style.display = "none"; 
+        
+        let score = 0;
+        
+        questions.forEach((item, index) => {
+            let userAns = studentAnswers[index];
+            if(userAns === item.ans) {
+                score++;
+            }
+        });
+
+        let dbKey = currentStudent.replace(/[.#$\[\]]/g, '').toLowerCase();
+        let submitTime = Date.now();
+        
+        let userDataToSave = {
+            name: currentStudent,
+            score: score,
+            time: submitTime,
+            answers: studentAnswers 
+        };
+        
+        db.ref('history_full_advanced_students/' + dbKey).set(userDataToSave).then(() => {
+            alert("Test Submitted! अभी आपको केवल अपना मार्क्स और रैंक दिखेगा। सही उत्तर देखने के लिए 5 घंटे बाद दोबारा लॉगिन करें।");
+            showLeaderboard(true, userDataToSave, false); 
+        }).catch(error => {
+            alert("स्कोर सेव करने में एरर आई: " + error.message);
+        });
+    }
+
+    function generateReviewHTML(savedAnswers) {
+        let reviewHTML = `<h3 style="text-align:center; color:#2c3e50;">📑 Detailed Answers Review</h3>`;
+        
+        questions.forEach((item, index) => {
+            let userAns = savedAnswers[index] || "Attempt nahi kiya";
+            let isCorrect = (userAns === item.ans);
+            
+            reviewHTML += `<div class="review-item">
+                <div style="font-weight:bold; margin-bottom:5px;">${item.q}</div>
+                <div>Aapka Jawab: <span class="${isCorrect ? 'correct-ans' : 'wrong-ans'}">${userAns}</span></div>`;
+            
+            if(!isCorrect) {
+                reviewHTML += `<div>Sahi Jawab: <span class="correct-ans">${item.ans}</span></div>`;
+            }
+            reviewHTML += `</div>`;
+        });
+        
+        let reviewDiv = document.getElementById('review-container');
+        reviewDiv.innerHTML = reviewHTML;
+        reviewDiv.classList.remove('hidden');
+    }
+
+    function showLeaderboard(isJustSubmitted, userData, showAnswers) {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('quiz-screen').classList.add('hidden');
+        document.getElementById('result-screen').classList.remove('hidden');
+
+        let delayMsgBox = document.getElementById('delay-message');
+        
+        if(showAnswers && userData && userData.answers) {
+            generateReviewHTML(userData.answers);
+            delayMsgBox.classList.add('hidden');
+        } else {
+            document.getElementById('review-container').classList.add('hidden');
+            delayMsgBox.innerText = "🔒 सुरक्षा कारण: आपके सही/गलत उत्तर (Answer Key) टेस्ट सबमिट करने के 5 घंटे बाद खुलेंगे।";
+            delayMsgBox.classList.remove('hidden');
+        }
+
+        let tbody = document.getElementById('leaderboard-body');
+        
+        db.ref('history_full_advanced_students').once('value').then((snapshot) => {
+            if(!snapshot.exists()) {
+                tbody.innerHTML = "<tr><td colspan='3'>कोई डेटा नहीं मिला।</td></tr>";
+                return;
+            }
+
+            let allStudents = [];
+            snapshot.forEach((child) => {
+                allStudents.push(child.val());
+            });
+
+            allStudents.sort((a, b) => {
+                if (b.score === a.score) return a.time - b.time; 
+                return b.score - a.score;
+            });
+
+            tbody.innerHTML = "";
+            let studentRank = 0;
+
+            allStudents.forEach((user, index) => {
+                let rank = index + 1;
+                let isCurrent = (user.name.toLowerCase() === currentStudent.toLowerCase());
+                
+                if(isCurrent) {
+                    studentRank = rank;
+                }
+                
+                let rowClass = isCurrent ? "highlight-row" : "";
+                let row = `<tr class="${rowClass}">
+                    <td>#${rank}</td>
+                    <td>${user.name}</td>
+                    <td>${user.score} / ${questions.length}</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+
+            if(isJustSubmitted) {
+                document.getElementById('result-message').innerText = `Test Submitted Successfully!\nAapka Score: ${userData.score}/${questions.length} | Rank: #${studentRank}`;
+            } else {
+                document.getElementById('result-message').innerText = `Welcome Back!\nAapka Score: ${userData.score}/${questions.length} | Rank: #${studentRank}`;
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
